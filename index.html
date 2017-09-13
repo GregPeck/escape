@@ -1,0 +1,51 @@
+<html>
+<head>
+<title>L0ST</title>
+<meta http-equiv="content-type" content="text/html; charset=UTF-8">
+<script src="lost.js"></script>
+<style type="text/css">
+	body {
+		margin:0;
+	}
+	#GUI {
+		position:absolute;
+		top:0;
+		left:0;
+	}
+	#textInfo {
+		width:300px;
+		height:200px;
+		border:5px outset #456;
+		top:50%;
+		left:50%;
+		margin:-100px auto auto -150px;
+		position:absolute;
+		background-color:rgba(12,22,36,0.8);
+	}
+</style>
+<script id="shader-fs" type="x-shader/x-fragment">
+precision mediump float;varying vec2 vTextureCoord;varying float vLightWeighting;varying vec3 worldPosition;varying float crepit;varying float crepit2;uniform sampler2D uSampler;uniform vec4 lights[48];uniform int nbLights;uniform vec3 ambientColor;void main(void) {vec4 textureColor = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t));vec3 totalLight = vec3(0.0,0.0,0.0) + ambientColor;for (int i=0; i<48; i++) {if (i==nbLights) {break;}vec3 light;float d = distance(worldPosition, lights[i].xyz);if (lights[i].a<=1.0) {light = vec3(0.88,0.59,0.12);light *= crepit;} else {light = vec3(0.2,0.2,1.+2.*crepit2);}light *= max(0.0,0.5-(0.2*(d)));totalLight += light;}gl_FragColor = vec4(textureColor.rgb * vLightWeighting, textureColor.a) + vec4(totalLight,textureColor.a);}
+</script>
+<script id="lava-fs" type="x-shader/x-fragment">
+precision mediump float;precision highp int;varying vec2 vTextureCoord;varying float vLightWeighting;uniform sampler2D uSampler;uniform float iTime;uniform vec2 resolution;varying vec3 worldPosition;varying vec3 vPosition;uniform vec4 lights[48];uniform int nbLights;uniform vec3 ambientColor;varying float crepit;varying float crepit2;float rand(vec2 co){return fract(sin(dot(co.xy ,vec2(12.9898,78.233))) * 43758.5453);}float hermite(float t) {return t * t * (3.0-2.0*t);}float dot3(vec3 a, vec3 b) {return a.x * b.x + a.y * b.y + a.z * b.z;}float rand(vec3 co) {return fract(sin(dot3(co.xyz ,vec3(12.9898,78.233, 33.87637))) * 43758.5453);}float noise(vec3 co, float freq) {vec3 v = co * vec3(freq, freq, freq); float ix1 = floor(v.x);float iy1 = floor(v.y);float iz1 = floor(v.z);float ix2 = floor(v.x + 1.0);float iy2 = floor(v.y + 1.0);float iz2 = floor(v.z + 1.0);float fx = hermite(fract(v.x));float fy = hermite(fract(v.y));float fz = hermite(fract(v.z));float mix1 = mix(mix(rand(vec3(ix1, iy1, iz1)), rand(vec3(ix2, iy1, iz1)), fx), mix(rand(vec3(ix1, iy2, iz1)), rand(vec3(ix2, iy2, iz1)), fx), fy);float mix2 = mix(mix(rand(vec3(ix1, iy1, iz2)), rand(vec3(ix2, iy1, iz2)), fx), mix(rand(vec3(ix1, iy2, iz2)), rand(vec3(ix2, iy2, iz2)), fx), fy);return mix(mix1, mix2, fz);}float pnoise(vec3 co, float freq, int steps, float persistence) {float value = 0.0;float ampl = 8.0;float sum = 0.0;const int maxStep = 5;for(int i=0 ; i<maxStep ; i++) {sum += ampl;value += noise(co, freq) * ampl;freq *= 2.0;ampl *= persistence;}return value / sum;}void main( void ) {vec2 position = gl_FragCoord.xy / resolution.xy;vec3 test;test.x = vPosition.x + (iTime/1000.0);test.y = vPosition.y + (iTime/1000.0);test.z = vPosition.z + (iTime/1000.0);float value = pnoise(test, 10.0, 5, 0.9);vec4 textureColor = texture2D(uSampler, vec2(vTextureCoord.s, vTextureCoord.t)) * 0.5;vec3 totalLight = vec3(0.0,0.0,0.0) + ambientColor;for (int i=0; i<48; i++) {if (i==nbLights) {break;}vec3 light;float d = distance(worldPosition, lights[i].xyz);if (lights[i].a<=1.0) {light = vec3(0.88,0.59,0.12);light *= crepit;} else {light = vec3(0.2,0.2,1.+2.*crepit2);}light *= max(0.0,0.5-(0.2*(d)));totalLight += light;}gl_FragColor = vec4(textureColor.rgb * vLightWeighting * 0.5,1.0) + vec4(mix(mix(vec3(1.0, 1.0, 0.0), vec3(1.0, 0.2, 0.0), (value + 1.0)),vec3(0.1, 0.0, 0.0) * vLightWeighting, value * 0.5 + 0.5) * vLightWeighting,1.0) + vec4(totalLight,1.0);}
+</script>
+<script id="torch-fs" type="x-shader/x-fragment">
+precision mediump float;precision highp int;uniform float iTime;varying vec2 vTextureCoord;varying float vLightWeighting;vec2 hash(vec2 p) {p = vec2( dot(p,vec2(127.1,311.7)), dot(p,vec2(269.5,183.3)) );return -1.0 + 2.0*fract(sin(p)*43758.5453123);}float noise(in vec2 p) {const float K1 = 0.366025404;const float K2 = 0.211324865;vec2 i = floor( p + (p.x+p.y)*K1 );vec2 a = p - i + (i.x+i.y)*K2;vec2 o = (a.x>a.y) ? vec2(1.0,0.0) : vec2(0.0,1.0);vec2 b = a - o + K2;vec2 c = a - 1.0 + 2.0*K2;vec3 h = max( 0.5-vec3(dot(a,a), dot(b,b), dot(c,c) ), 0.0 );vec3 n = h*h*h*h*vec3( dot(a,hash(i+0.0)), dot(b,hash(i+o)), dot(c,hash(i+1.0)));return dot( n, vec3(70.0) );}float fbm(vec2 uv) {float f;mat2 m = mat2( 1.6,  1.2, -1.2,  1.6 );f  = 0.5000*noise( uv ); uv = m*uv;f += 0.2500*noise( uv ); uv = m*uv;f += 0.1250*noise( uv ); uv = m*uv;f += 0.0625*noise( uv ); uv = m*uv;f = 0.5 + 0.5*f;return f;}void main( void ) {vec2 q = vec2(0.5-vTextureCoord.x, vTextureCoord.y);vec2 uv = vec2(0.0,0.0);q.y *= 2.;float strength = 3.;float T3 = max(2.,1.25*strength)*(iTime/50.0);q.x = mod(q.x,1.)-0.5;q.y -= 0.25;float n = fbm(strength*q - vec2(0,T3));float c = 1. - 16. * pow( max( 0., length(q*vec2(1.8+q.y*1.5,.75) ) - n * max( 0., q.y+.25 ) ),1.2 );float c1 = n * c * (1.5-pow(1.0*uv.y,4.));c1=clamp(c1,0.,1.);vec3 col = vec3(1.5*c1, 1.5*c1*c1*c1, c1*c1*c1*c1*c1*c1);float a = c * (1.-pow(uv.y,3.));gl_FragColor =  vec4(col, a);}
+</script>
+<script id="portal-fs" type="x-shader/x-fragment">
+precision mediump float;precision highp int;uniform float iTime;uniform vec4 lights[48];uniform vec2 resolution;uniform sampler2D uSampler;uniform vec3 ambientColor;varying vec3 vPosition;varying vec2 vTextureCoord;varying float vLightWeighting;mat2 makem2(in float theta){float c = cos(theta);float s = sin(theta);return mat2(c,-s,s,c);}float noise( in vec2 tcoord ){return texture2D(uSampler, tcoord*0.01).x / 2.0;}float fbm(in vec2 p) {vec4 tt=fract(vec4(iTime/512.0*2.)+vec4(0.0,0.25,0.5,0.75));vec2 p1=p-normalize(p)*tt.x;vec2 p2=vec2(1.0)+p-normalize(p)*tt.y;vec2 p3=vec2(2.0)+p-normalize(p)*tt.z;vec2 p4=vec2(3.0)+p-normalize(p)*tt.w;vec4 tr=vec4(1.0)-abs(tt-vec4(0.5))*2.0;float z=2.;vec4 rz = vec4(0.);for (float i= 1.;i < 4.;i++) {rz+= abs((vec4(noise(p1),noise(p2),noise(p3),noise(p4))-vec4(0.5))*2.)/z;z = z*2.;p1 = p1*2.;p2 = p2*2.;p3 = p3*2.;p4 = p4*2.;}return dot(rz,tr)*0.18;}float dualfbm(in vec2 p) {vec2 p2 = p*.7;vec2 basis = vec2(fbm(p2-iTime/255.0*1.6),fbm(p2+iTime/255.0*1.7));basis = (basis-.5)*.2;p += basis;return fbm(p); }float circ(vec2 p) {float r = length(p);r = log(sqrt(r));return abs(mod(r*2.,6.28318)-4.54)*1.+0.855;}void main( void ) {vec2 p = -1.0 * vTextureCoord.xy - 1.0;p.x*=2.0;p.y*=2.0;float rz = dualfbm(p);rz *= abs((-circ(vec2(p.x / 4.0, p.y / 4.0))));rz *= abs((-circ(vec2(p.x / 4.0, p.y / 4.0))));rz *= abs((-circ(vec2(p.x / 4.0, p.y / 4.0))));vec3 col = vec3(.1,0.1,0.4)/rz;col=pow(abs(col),vec3(.99));float i = 1.0 +ambientColor.x;gl_FragColor = vec4(col,(1.0-rz)*i);}
+</script>
+<script id="shader-vs" type="x-shader/x-vertex">
+attribute vec3 aVertexPosition;attribute vec2 aTextureCoord;uniform mat4 uMVMatrix;uniform mat4 uPMatrix;uniform float fTime;uniform bool isLava;uniform vec3 cameraPosition;varying vec2 vTextureCoord;varying float vLightWeighting;varying vec3 vPosition;varying vec3 worldPosition;varying float crepit;varying float crepit2;varying vec2 frag_uv;void main(void) {if (isLava) {vPosition = normalize(aVertexPosition);vec3 newPosition = aVertexPosition;gl_Position = uMVMatrix * vec4(newPosition, 1.0);newPosition.z+=sin(gl_Position.x + gl_Position.y + fTime/40.0)*0.05;gl_Position = uPMatrix * uMVMatrix * vec4(newPosition, 1.0);} else {gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);vPosition = normalize(aVertexPosition);}vTextureCoord = aTextureCoord;vLightWeighting = 1.0-gl_Position.z/10.0;crepit = 1.0 + max(0.0, sin(fTime)/16.0);crepit2 = abs(sin(fTime/50.0));worldPosition = cameraPosition.xyz + aVertexPosition;}
+</script>
+</head>
+<body onload="webGLStart();" onresize="resize()">
+	<canvas id="textureCanvas" style="display:none"></canvas>
+	<canvas id="game"></canvas>
+	<div id="textInfo"></div>
+	<canvas id="GUI"></canvas>
+</body>
+<script>
+ICI_LE_SCRIPT_MINIFIED	
+</script>
+</html>
